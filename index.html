@@ -1621,8 +1621,17 @@
                             <input type="number" id="andares" placeholder="4" min="1" max="100">
                         </div>
                         <div class="input-group">
+                            <label for="qtdEdificios">Edifícios no Conjunto - Opcional</label>
+                            <input type="number" id="qtdEdificios" placeholder="1" min="1" max="50">
+                            <small style="color: var(--text-muted); font-size: 0.75rem;">Ex: Torres gêmeas = 2, Condomínio com 5 blocos = 5</small>
+                        </div>
+                        <div class="input-group">
                             <label for="elevacaoBase">Elevação da Base (m) - Opcional</label>
                             <input type="number" id="elevacaoBase" placeholder="820" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label for="nomeConjunto">Nome do Conjunto - Opcional</label>
+                            <input type="text" id="nomeConjunto" placeholder="Ex: Residencial das Flores">
                         </div>
                     </div>
                     
@@ -1643,6 +1652,11 @@
                             <div class="label">Altura Estimada (m)</div>
                         </div>
                         <div class="result-card">
+                            <div class="icon">🏢</div>
+                            <div class="value" id="resultQtdEdificios">--</div>
+                            <div class="label">Edifícios no Conjunto</div>
+                        </div>
+                        <div class="result-card">
                             <div class="icon">🧭</div>
                             <div class="value" id="resultAzimute">--</div>
                             <div class="label">Azimute (graus)</div>
@@ -1656,6 +1670,11 @@
                             <div class="icon">⬆️</div>
                             <div class="value" id="resultCotaTopo">--</div>
                             <div class="label">Cota do Topo (m)</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="icon">🏗️</div>
+                            <div class="value" id="resultTotalUnidades">--</div>
+                            <div class="label">Total de Unidades Est.</div>
                         </div>
                     </div>
 
@@ -2042,6 +2061,8 @@
             const lng = parseFloat(document.getElementById('longitude').value);
             const andares = parseInt(document.getElementById('andares').value);
             let elevacaoBase = parseFloat(document.getElementById('elevacaoBase').value);
+            let qtdEdificios = parseInt(document.getElementById('qtdEdificios').value);
+            const nomeConjunto = document.getElementById('nomeConjunto').value.trim();
 
             // Validação
             if (isNaN(lat) || isNaN(lng) || isNaN(andares)) {
@@ -2052,6 +2073,11 @@
             if (andares < 1 || andares > 100) {
                 alert('Número de andares deve estar entre 1 e 100.');
                 return;
+            }
+
+            // Se não informou quantidade de edifícios, assume 1
+            if (isNaN(qtdEdificios) || qtdEdificios < 1) {
+                qtdEdificios = 1;
             }
 
             // Calcular altura (3m por andar)
@@ -2067,6 +2093,9 @@
 
             // Calcular azimute (simulado - em um caso real viria da geometria)
             const azimute = Math.random() * 360;
+
+            // Estimar total de unidades (aproximação: 4 unidades por andar por edifício)
+            const totalUnidades = andares * qtdEdificios * 4;
 
             // Classificação
             let classificacao;
@@ -2085,21 +2114,26 @@
             document.getElementById('classificationResult').style.display = 'block';
 
             document.getElementById('resultAltura').textContent = altura.toFixed(1);
+            document.getElementById('resultQtdEdificios').textContent = qtdEdificios;
             document.getElementById('resultAzimute').textContent = azimute.toFixed(1) + '°';
             document.getElementById('resultCotaBase').textContent = elevacaoBase.toFixed(1);
             document.getElementById('resultCotaTopo').textContent = cotaTopo.toFixed(1);
+            document.getElementById('resultTotalUnidades').textContent = '~' + totalUnidades;
             document.getElementById('resultClassificacao').textContent = classificacao;
 
             // Adicionar à lista
             const novoEdificio = {
                 id: edificiosCadastrados.length + 1,
+                nome: nomeConjunto || 'Edifício ' + (edificiosCadastrados.length + 1),
                 latitude: lat,
                 longitude: lng,
                 andares: andares,
+                qtdEdificios: qtdEdificios,
                 altura: altura,
                 azimute: azimute,
                 cotaBase: elevacaoBase,
                 cotaTopo: cotaTopo,
+                totalUnidades: totalUnidades,
                 classificacao: classificacao
             };
 
@@ -2123,24 +2157,32 @@
             }
 
             lista.innerHTML = edificiosCadastrados.map((ed, index) => `
-                <div class="data-item">
+                <div class="data-item" style="grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr auto;">
                     <div>
-                        <small style="color: var(--text-muted);">Lat/Lng</small><br>
-                        <span class="data-item-value">${ed.latitude.toFixed(4)}, ${ed.longitude.toFixed(4)}</span>
+                        <small style="color: var(--text-muted);">Nome / Localização</small><br>
+                        <span class="data-item-value" style="color: var(--accent);">${ed.nome}</span><br>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">${ed.latitude.toFixed(4)}, ${ed.longitude.toFixed(4)}</span>
+                    </div>
+                    <div>
+                        <small style="color: var(--text-muted);">Edifícios</small><br>
+                        <span class="data-item-value" style="font-size: 1.3rem;">${ed.qtdEdificios}</span>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);"> bloco(s)</span>
                     </div>
                     <div>
                         <small style="color: var(--text-muted);">Andares/Altura</small><br>
-                        <span class="data-item-value">${ed.andares} pav / ${ed.altura}m</span>
+                        <span class="data-item-value">${ed.andares} pav</span><br>
+                        <span style="font-size: 0.85rem; color: var(--text-muted);">${ed.altura}m</span>
                     </div>
                     <div>
-                        <small style="color: var(--text-muted);">Cotas</small><br>
-                        <span class="data-item-value">${ed.cotaBase.toFixed(1)} - ${ed.cotaTopo.toFixed(1)}m</span>
+                        <small style="color: var(--text-muted);">Cotas (Base/Topo)</small><br>
+                        <span class="data-item-value">${ed.cotaBase.toFixed(1)}m</span><br>
+                        <span style="font-size: 0.85rem; color: var(--accent);">${ed.cotaTopo.toFixed(1)}m</span>
                     </div>
                     <div>
                         <small style="color: var(--text-muted);">Classificação</small><br>
-                        <span class="data-item-value">${ed.classificacao}</span>
+                        <span class="data-item-value" style="font-size: 0.85rem;">${ed.classificacao}</span>
                     </div>
-                    <button class="delete-btn" onclick="removerEdificio(${index})">🗑️</button>
+                    <button class="delete-btn" onclick="removerEdificio(${index})" title="Remover">🗑️</button>
                 </div>
             `).join('');
         }
@@ -2155,6 +2197,8 @@
             document.getElementById('longitude').value = '';
             document.getElementById('andares').value = '';
             document.getElementById('elevacaoBase').value = '';
+            document.getElementById('qtdEdificios').value = '';
+            document.getElementById('nomeConjunto').value = '';
             document.getElementById('resultsGrid').style.display = 'none';
             document.getElementById('classificationResult').style.display = 'none';
         }
@@ -2175,13 +2219,16 @@
             // Preparar dados para Excel
             const dados = edificiosCadastrados.map(ed => ({
                 'ID': ed.id,
+                'Nome do Conjunto': ed.nome,
                 'Latitude': ed.latitude,
                 'Longitude': ed.longitude,
+                'Qtd. Edifícios no Conjunto': ed.qtdEdificios,
                 'Quantidade de Andares': ed.andares,
                 'Altura Média (m)': ed.altura,
                 'Azimute (graus)': ed.azimute.toFixed(2),
                 'Cota da Base (m)': ed.cotaBase.toFixed(2),
                 'Cota do Topo (m)': ed.cotaTopo.toFixed(2),
+                'Total Unidades Estimadas': ed.totalUnidades,
                 'Classificação': ed.classificacao
             }));
 
@@ -2193,13 +2240,16 @@
             // Ajustar largura das colunas
             ws['!cols'] = [
                 { wch: 5 },  // ID
+                { wch: 25 }, // Nome
                 { wch: 12 }, // Latitude
                 { wch: 12 }, // Longitude
+                { wch: 25 }, // Qtd Edifícios
                 { wch: 20 }, // Andares
                 { wch: 15 }, // Altura
                 { wch: 15 }, // Azimute
                 { wch: 15 }, // Cota Base
                 { wch: 15 }, // Cota Topo
+                { wch: 22 }, // Total Unidades
                 { wch: 20 }, // Classificação
             ];
 
