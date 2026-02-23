@@ -1,0 +1,2250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapeamento 3D de Edifícios | Uberaba-MG</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- SheetJS para exportar Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #0a1628;
+            --secondary: #1e3a5f;
+            --accent: #00d4aa;
+            --accent-light: #00ffcc;
+            --accent-orange: #ff6b35;
+            --text-light: #e8f4f8;
+            --text-muted: #8ba3b5;
+            --glass: rgba(30, 58, 95, 0.4);
+            --glass-border: rgba(0, 212, 170, 0.2);
+            --gradient-1: linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #0d2137 100%);
+            --gradient-accent: linear-gradient(135deg, #00d4aa 0%, #00a884 100%);
+            --shadow-glow: 0 0 60px rgba(0, 212, 170, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--primary);
+            color: var(--text-light);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ==================== ANIMATED BACKGROUND ==================== */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: var(--gradient-1);
+            overflow: hidden;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(0, 212, 170, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 107, 53, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(0, 212, 170, 0.03) 0%, transparent 30%);
+            animation: bgFloat 20s ease-in-out infinite;
+        }
+
+        @keyframes bgFloat {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, 2%) rotate(1deg); }
+            66% { transform: translate(-1%, 1%) rotate(-1deg); }
+        }
+
+        /* Grid de edifícios no fundo */
+        .buildings-grid {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 40%;
+            z-index: -1;
+            opacity: 0.03;
+            background-image: 
+                repeating-linear-gradient(90deg, var(--accent) 0px, var(--accent) 2px, transparent 2px, transparent 60px),
+                repeating-linear-gradient(0deg, var(--accent) 0px, var(--accent) 2px, transparent 2px, transparent 40px);
+        }
+
+        /* ==================== NAVIGATION ==================== */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 1rem 2rem;
+            background: rgba(10, 22, 40, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+            transition: all 0.3s ease;
+        }
+
+        nav.scrolled {
+            padding: 0.7rem 2rem;
+            background: rgba(10, 22, 40, 0.95);
+        }
+
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-light);
+        }
+
+        .logo-icon {
+            width: 45px;
+            height: 45px;
+            background: var(--gradient-accent);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 212, 170, 0.3);
+        }
+
+        .logo-text {
+            font-weight: 700;
+            font-size: 1.3rem;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span {
+            color: var(--accent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            position: relative;
+            padding: 0.5rem 0;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient-accent);
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent);
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .nav-cta {
+            background: var(--gradient-accent);
+            color: var(--primary);
+            padding: 0.7rem 1.5rem;
+            border-radius: 30px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0, 212, 170, 0.3);
+        }
+
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(0, 212, 170, 0.4);
+        }
+
+        /* Mobile menu */
+        .mobile-toggle {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        .mobile-toggle span {
+            width: 25px;
+            height: 2px;
+            background: var(--text-light);
+            transition: all 0.3s ease;
+        }
+
+        /* ==================== HERO SECTION ==================== */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 120px 2rem 80px;
+            position: relative;
+        }
+
+        .hero-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .hero-text {
+            animation: fadeInUp 1s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            animation: fadeInUp 1s ease 0.2s both;
+        }
+
+        .hero-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            letter-spacing: -2px;
+            animation: fadeInUp 1s ease 0.3s both;
+        }
+
+        .hero h1 .highlight {
+            background: var(--gradient-accent);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-description {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            max-width: 500px;
+            animation: fadeInUp 1s ease 0.4s both;
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 3rem;
+            margin-bottom: 2.5rem;
+            animation: fadeInUp 1s ease 0.5s both;
+        }
+
+        .stat-item {
+            text-align: left;
+        }
+
+        .stat-number {
+            font-family: 'Space Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            animation: fadeInUp 1s ease 0.6s both;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: var(--gradient-accent);
+            color: var(--primary);
+            box-shadow: 0 4px 20px rgba(0, 212, 170, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(0, 212, 170, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--glass);
+            color: var(--text-light);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 212, 170, 0.1);
+            border-color: var(--accent);
+        }
+
+        /* Hero Visual */
+        .hero-visual {
+            position: relative;
+            animation: fadeInUp 1s ease 0.5s both;
+        }
+
+        .hero-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 2rem;
+            backdrop-filter: blur(20px);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .building-viz {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 15px;
+            height: 250px;
+            margin-bottom: 1.5rem;
+        }
+
+        .building {
+            width: 50px;
+            background: linear-gradient(180deg, var(--accent) 0%, var(--secondary) 100%);
+            border-radius: 8px 8px 0 0;
+            position: relative;
+            animation: buildingGrow 1.5s ease both;
+            box-shadow: 0 0 20px rgba(0, 212, 170, 0.2);
+        }
+
+        .building::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(255,255,255,0.1) 0px,
+                rgba(255,255,255,0.1) 8px,
+                transparent 8px,
+                transparent 20px
+            );
+        }
+
+        .building:nth-child(1) { height: 60%; animation-delay: 0.1s; }
+        .building:nth-child(2) { height: 85%; animation-delay: 0.2s; }
+        .building:nth-child(3) { height: 100%; animation-delay: 0.3s; width: 60px; }
+        .building:nth-child(4) { height: 70%; animation-delay: 0.4s; }
+        .building:nth-child(5) { height: 45%; animation-delay: 0.5s; }
+        .building:nth-child(6) { height: 75%; animation-delay: 0.6s; }
+
+        @keyframes buildingGrow {
+            from {
+                height: 0;
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .hero-card-info {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            text-align: center;
+        }
+
+        .info-item {
+            background: rgba(0, 212, 170, 0.1);
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .info-value {
+            font-family: 'Space Mono', monospace;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ==================== SECTIONS COMMON ==================== */
+        section {
+            padding: 100px 2rem;
+            position: relative;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-tag {
+            display: inline-block;
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            border: 1px solid var(--glass-border);
+        }
+
+        .section-title {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: -1px;
+        }
+
+        .section-subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* ==================== ABOUT SECTION ==================== */
+        #sobre {
+            background: linear-gradient(180deg, transparent 0%, rgba(0, 212, 170, 0.02) 100%);
+        }
+
+        .about-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .about-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 2rem;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .about-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--gradient-accent);
+            transform: scaleX(0);
+            transition: transform 0.4s ease;
+        }
+
+        .about-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .about-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .about-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 212, 170, 0.1);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .about-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+        }
+
+        .about-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* ==================== METHODOLOGY SECTION ==================== */
+        .methodology-content {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(180deg, var(--accent) 0%, var(--secondary) 100%);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 3rem;
+            padding-left: 40px;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -40px;
+            top: 5px;
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            border: 3px solid var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--accent);
+        }
+
+        .timeline-content {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .timeline-content h4 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .timeline-content p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .formula-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: 'Space Mono', monospace;
+            color: var(--accent-light);
+            font-size: 0.9rem;
+        }
+
+        /* ==================== DATA/CHARTS SECTION ==================== */
+        #dados {
+            background: linear-gradient(180deg, rgba(0, 212, 170, 0.02) 0%, transparent 100%);
+        }
+
+        .charts-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+        }
+
+        .chart-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 1.5rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .chart-badge {
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        /* Data Table */
+        .data-table-container {
+            max-width: 1200px;
+            margin: 3rem auto 0;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .table-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        th {
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background: rgba(0, 212, 170, 0.05);
+        }
+
+        .classification-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .classification-badge.baixo { background: rgba(0, 212, 170, 0.2); color: #00d4aa; }
+        .classification-badge.medio { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
+        .classification-badge.alto { background: rgba(255, 107, 53, 0.2); color: #ff6b35; }
+        .classification-badge.muito-alto { background: rgba(220, 53, 69, 0.2); color: #dc3545; }
+
+        /* ==================== CALCULATOR SECTION ==================== */
+        #calculadora {
+            background: linear-gradient(180deg, transparent 0%, rgba(0, 212, 170, 0.03) 100%);
+        }
+
+        .calculator-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .calculator-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: var(--shadow-glow);
+        }
+
+        .calculator-header {
+            background: linear-gradient(135deg, rgba(0, 212, 170, 0.2) 0%, rgba(0, 168, 132, 0.1) 100%);
+            padding: 2rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .calculator-header h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .calculator-header p {
+            color: var(--text-muted);
+        }
+
+        .calculator-body {
+            padding: 2rem;
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .input-group input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1rem;
+            color: var(--text-light);
+            font-size: 1rem;
+            font-family: 'Space Mono', monospace;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+        }
+
+        .input-group input::placeholder {
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        .calculator-actions {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .result-card {
+            background: rgba(0, 212, 170, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .result-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-3px);
+        }
+
+        .result-card .icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-card .value {
+            font-family: 'Space Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 0.3rem;
+        }
+
+        .result-card .label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .classification-result {
+            background: linear-gradient(135deg, rgba(0, 212, 170, 0.1) 0%, rgba(0, 168, 132, 0.05) 100%);
+            border: 2px solid var(--accent);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .classification-result h4 {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .classification-result .classification-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        /* Data List */
+        .data-list-container {
+            margin-top: 2rem;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 2rem;
+        }
+
+        .data-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .data-list-header h4 {
+            font-size: 1.1rem;
+        }
+
+        .data-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .data-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr auto;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .data-item-value {
+            font-family: 'Space Mono', monospace;
+        }
+
+        .delete-btn {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background: rgba(220, 53, 69, 0.4);
+        }
+
+        /* ==================== GALLERY SECTION ==================== */
+        .gallery-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .gallery-item {
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+            cursor: pointer;
+            group: gallery;
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+
+        .gallery-item:hover img {
+            transform: scale(1.1);
+        }
+
+        .gallery-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 0%, rgba(10, 22, 40, 0.9) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 1.5rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .gallery-item:hover .gallery-overlay {
+            opacity: 1;
+        }
+
+        .gallery-overlay h4 {
+            font-size: 1.1rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .gallery-overlay p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Placeholder for images */
+        .image-placeholder {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+        }
+
+        .image-placeholder .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* ==================== DOWNLOADS SECTION ==================== */
+        .downloads-grid {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .download-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.4s ease;
+        }
+
+        .download-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .download-icon {
+            width: 70px;
+            height: 70px;
+            background: rgba(0, 212, 170, 0.1);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin: 0 auto 1.5rem;
+        }
+
+        .download-card h4 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .download-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .download-card .file-info {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--accent);
+            margin-bottom: 1rem;
+        }
+
+        /* ==================== FOOTER ==================== */
+        footer {
+            background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid var(--glass-border);
+            padding: 60px 2rem 30px;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        .footer-brand {
+            max-width: 300px;
+        }
+
+        .footer-brand .logo {
+            margin-bottom: 1rem;
+        }
+
+        .footer-brand p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .social-links a {
+            width: 40px;
+            height: 40px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-light);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .social-links a:hover {
+            background: var(--accent);
+            color: var(--primary);
+            border-color: var(--accent);
+        }
+
+        .footer-links h4 {
+            font-size: 1rem;
+            margin-bottom: 1.5rem;
+            color: var(--accent);
+        }
+
+        .footer-links ul {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.8rem;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--accent);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid var(--glass-border);
+            padding-top: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* ==================== RESPONSIVE ==================== */
+        @media (max-width: 1024px) {
+            .hero-content {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .hero-text {
+                order: 1;
+            }
+
+            .hero-visual {
+                order: 0;
+            }
+
+            .hero-stats {
+                justify-content: center;
+            }
+
+            .hero-buttons {
+                justify-content: center;
+            }
+
+            .hero-description {
+                margin: 0 auto 2rem;
+            }
+
+            .footer-content {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .nav-cta {
+                display: none;
+            }
+
+            .mobile-toggle {
+                display: flex;
+            }
+
+            .hero {
+                padding: 100px 1rem 60px;
+            }
+
+            .hero-stats {
+                flex-direction: column;
+                gap: 1.5rem;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            section {
+                padding: 60px 1rem;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .calculator-actions {
+                flex-direction: column;
+            }
+
+            .data-item {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .footer-content {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .footer-brand {
+                max-width: 100%;
+            }
+
+            .social-links {
+                justify-content: center;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+        }
+
+        /* ==================== ANIMATIONS ON SCROLL ==================== */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s ease;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--secondary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation"></div>
+    <div class="buildings-grid"></div>
+
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-content">
+            <a href="#" class="logo">
+                <div class="logo-icon">🏗️</div>
+                <div class="logo-text">Urban<span>Map</span></div>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#inicio">Início</a></li>
+                <li><a href="#sobre">Sobre</a></li>
+                <li><a href="#metodologia">Metodologia</a></li>
+                <li><a href="#dados">Dados</a></li>
+                <li><a href="#calculadora">Calculadora</a></li>
+                <li><a href="#galeria">Galeria</a></li>
+                <li><a href="#downloads">Downloads</a></li>
+            </ul>
+            <a href="#calculadora" class="nav-cta">Usar Calculadora</a>
+            <div class="mobile-toggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="inicio">
+        <div class="hero-content">
+            <div class="hero-text">
+                <div class="hero-badge">
+                    <span>Projeto de Geoprocessamento</span>
+                </div>
+                <h1>Mapeamento 3D de <span class="highlight">Edifícios</span> de Uberaba-MG</h1>
+                <p class="hero-description">
+                    Análise espacial completa da verticalização urbana utilizando dados de satélite, 
+                    Google Earth Engine e técnicas avançadas de sensoriamento remoto.
+                </p>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <div class="stat-number" id="total-buildings">15,234</div>
+                        <div class="stat-label">Edifícios Mapeados</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">4m</div>
+                        <div class="stat-label">Resolução Espacial</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">2023</div>
+                        <div class="stat-label">Dados Atualizados</div>
+                    </div>
+                </div>
+                <div class="hero-buttons">
+                    <a href="#calculadora" class="btn btn-primary">
+                        <span>🧮</span> Usar Calculadora
+                    </a>
+                    <a href="#dados" class="btn btn-secondary">
+                        <span>📊</span> Ver Dados
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-card">
+                    <div class="building-viz">
+                        <div class="building"></div>
+                        <div class="building"></div>
+                        <div class="building"></div>
+                        <div class="building"></div>
+                        <div class="building"></div>
+                        <div class="building"></div>
+                    </div>
+                    <div class="hero-card-info">
+                        <div class="info-item">
+                            <div class="info-value">12.5m</div>
+                            <div class="info-label">Altura Média</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-value">4.2</div>
+                            <div class="info-label">Andares Médios</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-value">820m</div>
+                            <div class="info-label">Elevação Média</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="sobre">
+        <div class="section-header">
+            <span class="section-tag">Sobre o Projeto</span>
+            <h2 class="section-title">Mapeamento Urbano Inteligente</h2>
+            <p class="section-subtitle">
+                Utilizando tecnologias de ponta para entender a verticalização de Uberaba
+            </p>
+        </div>
+        <div class="about-grid">
+            <div class="about-card fade-in">
+                <div class="about-icon">🛰️</div>
+                <h3>Dados de Satélite</h3>
+                <p>Utilização do Google Open Buildings 2.5D Temporal com imagens Sentinel-2 para detecção automática de edifícios e estimativa de alturas com resolução de 4 metros.</p>
+            </div>
+            <div class="about-card fade-in">
+                <div class="about-icon">🗺️</div>
+                <h3>Google Earth Engine</h3>
+                <p>Processamento em nuvem de grandes volumes de dados geoespaciais, permitindo análises em escala regional com eficiência e precisão.</p>
+            </div>
+            <div class="about-card fade-in">
+                <div class="about-icon">📐</div>
+                <h3>Análise Espacial</h3>
+                <p>Cálculo de estatísticas zonais, extração de atributos como altura, número de andares, azimute e classificação de edificações.</p>
+            </div>
+            <div class="about-card fade-in">
+                <div class="about-icon">💾</div>
+                <h3>QGIS + Python</h3>
+                <p>Processamento local com scripts Python no QGIS para refinamento dos dados e geração de produtos cartográficos de alta qualidade.</p>
+            </div>
+            <div class="about-card fade-in">
+                <div class="about-icon">📊</div>
+                <h3>Visualização de Dados</h3>
+                <p>Gráficos interativos e tabelas para exploração dos resultados, permitindo análises customizadas e exportação em múltiplos formatos.</p>
+            </div>
+            <div class="about-card fade-in">
+                <div class="about-icon">🌐</div>
+                <h3>Dados Abertos</h3>
+                <p>Todos os dados e códigos disponíveis gratuitamente no GitHub, promovendo transparência e possibilitando replicação do estudo.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Methodology Section -->
+    <section id="metodologia">
+        <div class="section-header">
+            <span class="section-tag">Metodologia</span>
+            <h2 class="section-title">Como os Dados são Processados</h2>
+            <p class="section-subtitle">
+                Fluxo de trabalho completo desde a aquisição até a análise final
+            </p>
+        </div>
+        <div class="methodology-content">
+            <div class="timeline">
+                <div class="timeline-item fade-in">
+                    <div class="timeline-dot">1</div>
+                    <div class="timeline-content">
+                        <h4>Aquisição de Dados</h4>
+                        <p>Download de imagens do Google Open Buildings 2.5D Temporal e Copernicus DEM GLO-30 via Google Earth Engine.</p>
+                    </div>
+                </div>
+                <div class="timeline-item fade-in">
+                    <div class="timeline-dot">2</div>
+                    <div class="timeline-content">
+                        <h4>Extração de Footprints</h4>
+                        <p>Utilização do Google Open Buildings V3 para obter os polígonos de cada edifício detectado na área de estudo.</p>
+                    </div>
+                </div>
+                <div class="timeline-item fade-in">
+                    <div class="timeline-dot">3</div>
+                    <div class="timeline-content">
+                        <h4>Cálculo de Altura</h4>
+                        <p>A altura é obtida diretamente do dataset Google Open Buildings 2.5D, que utiliza machine learning para estimar alturas a partir de imagens Sentinel-2.</p>
+                        <div class="formula-box">
+                            Altura = building_height (Google ML)
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item fade-in">
+                    <div class="timeline-dot">4</div>
+                    <div class="timeline-content">
+                        <h4>Estimativa de Andares</h4>
+                        <p>O número de pavimentos é estimado dividindo a altura total pela altura média de um andar (3 metros).</p>
+                        <div class="formula-box">
+                            Nº Andares = ARREDONDAR(Altura ÷ 3.0)
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item fade-in">
+                    <div class="timeline-dot">5</div>
+                    <div class="timeline-content">
+                        <h4>Cálculo de Cotas</h4>
+                        <p>A elevação da base vem do DEM e a cota do topo é calculada somando a altura do edifício.</p>
+                        <div class="formula-box">
+                            Cota Base = DEM (elevação do terreno)<br>
+                            Cota Topo = Cota Base + Altura
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item fade-in">
+                    <div class="timeline-dot">6</div>
+                    <div class="timeline-content">
+                        <h4>Classificação</h4>
+                        <p>Os edifícios são classificados por porte conforme o número de pavimentos.</p>
+                        <div class="formula-box">
+                            Baixo: 1-2 pav | Médio: 3-5 pav | Alto: 6-10 pav | Muito Alto: >10 pav
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Data Section -->
+    <section id="dados">
+        <div class="section-header">
+            <span class="section-tag">Análise de Dados</span>
+            <h2 class="section-title">Estatísticas e Visualizações</h2>
+            <p class="section-subtitle">
+                Explore os dados de verticalização de Uberaba através de gráficos interativos
+            </p>
+        </div>
+        
+        <div class="charts-grid">
+            <div class="chart-card fade-in">
+                <div class="chart-header">
+                    <h3 class="chart-title">Distribuição por Classificação</h3>
+                    <span class="chart-badge">Pizza</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="classificationChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card fade-in">
+                <div class="chart-header">
+                    <h3 class="chart-title">Distribuição de Alturas</h3>
+                    <span class="chart-badge">Barras</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="heightChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card fade-in">
+                <div class="chart-header">
+                    <h3 class="chart-title">Número de Andares</h3>
+                    <span class="chart-badge">Histograma</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="floorsChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card fade-in">
+                <div class="chart-header">
+                    <h3 class="chart-title">Elevação do Terreno</h3>
+                    <span class="chart-badge">Linha</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="elevationChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="data-table-container fade-in">
+            <div class="table-header">
+                <h3 class="table-title">📋 Amostra dos Dados</h3>
+                <div class="table-actions">
+                    <button class="btn btn-secondary" onclick="downloadSampleCSV()">
+                        <span>📥</span> Baixar CSV
+                    </button>
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Latitude</th>
+                            <th>Longitude</th>
+                            <th>Altura (m)</th>
+                            <th>Andares</th>
+                            <th>Cota Base (m)</th>
+                            <th>Cota Topo (m)</th>
+                            <th>Classificação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Data will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Calculator Section -->
+    <section id="calculadora">
+        <div class="section-header">
+            <span class="section-tag">Ferramenta Interativa</span>
+            <h2 class="section-title">Calculadora de Edifícios</h2>
+            <p class="section-subtitle">
+                Adicione dados de edifícios e calcule automaticamente altura, azimute, cotas e classificação
+            </p>
+        </div>
+        
+        <div class="calculator-container">
+            <div class="calculator-card">
+                <div class="calculator-header">
+                    <h3>🧮 Inserir Novo Edifício</h3>
+                    <p>Preencha os dados e o sistema calculará automaticamente os demais atributos</p>
+                </div>
+                <div class="calculator-body">
+                    <div class="input-grid">
+                        <div class="input-group">
+                            <label for="latitude">Latitude</label>
+                            <input type="number" id="latitude" placeholder="-19.7478" step="0.0001">
+                        </div>
+                        <div class="input-group">
+                            <label for="longitude">Longitude</label>
+                            <input type="number" id="longitude" placeholder="-47.9319" step="0.0001">
+                        </div>
+                        <div class="input-group">
+                            <label for="andares">Quantidade de Andares</label>
+                            <input type="number" id="andares" placeholder="4" min="1" max="100">
+                        </div>
+                        <div class="input-group">
+                            <label for="elevacaoBase">Elevação da Base (m) - Opcional</label>
+                            <input type="number" id="elevacaoBase" placeholder="820" step="0.1">
+                        </div>
+                    </div>
+                    
+                    <div class="calculator-actions">
+                        <button class="btn btn-primary" onclick="calcularEdificio()">
+                            <span>🔢</span> Calcular e Adicionar
+                        </button>
+                        <button class="btn btn-secondary" onclick="limparFormulario()">
+                            <span>🗑️</span> Limpar
+                        </button>
+                    </div>
+
+                    <!-- Results -->
+                    <div class="results-grid" id="resultsGrid" style="display: none;">
+                        <div class="result-card">
+                            <div class="icon">📏</div>
+                            <div class="value" id="resultAltura">--</div>
+                            <div class="label">Altura Estimada (m)</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="icon">🧭</div>
+                            <div class="value" id="resultAzimute">--</div>
+                            <div class="label">Azimute (graus)</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="icon">⬇️</div>
+                            <div class="value" id="resultCotaBase">--</div>
+                            <div class="label">Cota da Base (m)</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="icon">⬆️</div>
+                            <div class="value" id="resultCotaTopo">--</div>
+                            <div class="label">Cota do Topo (m)</div>
+                        </div>
+                    </div>
+
+                    <div class="classification-result" id="classificationResult" style="display: none;">
+                        <h4>Classificação do Edifício</h4>
+                        <div class="classification-value" id="resultClassificacao">--</div>
+                    </div>
+
+                    <!-- Data List -->
+                    <div class="data-list-container">
+                        <div class="data-list-header">
+                            <h4>📋 Edifícios Cadastrados (<span id="totalCadastrados">0</span>)</h4>
+                            <div style="display: flex; gap: 1rem;">
+                                <button class="btn btn-secondary" onclick="exportarExcel()">
+                                    <span>📊</span> Exportar Excel
+                                </button>
+                                <button class="btn btn-secondary" onclick="limparTodos()">
+                                    <span>🗑️</span> Limpar Todos
+                                </button>
+                            </div>
+                        </div>
+                        <div class="data-list" id="dataList">
+                            <p style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                                Nenhum edifício cadastrado ainda. Use o formulário acima para adicionar.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Gallery Section -->
+    <section id="galeria">
+        <div class="section-header">
+            <span class="section-tag">Galeria</span>
+            <h2 class="section-title">Imagens do Projeto</h2>
+            <p class="section-subtitle">
+                Mapas, visualizações e resultados do mapeamento de Uberaba
+            </p>
+        </div>
+        <div class="gallery-grid">
+            <div class="gallery-item fade-in">
+                <div class="image-placeholder">
+                    <div class="icon">🗺️</div>
+                    <span>Mapa de Altura dos Edifícios</span>
+                </div>
+                <div class="gallery-overlay">
+                    <h4>Mapa de Alturas</h4>
+                    <p>Visualização das alturas estimadas dos edifícios</p>
+                </div>
+            </div>
+            <div class="gallery-item fade-in">
+                <div class="image-placeholder">
+                    <div class="icon">📊</div>
+                    <span>Distribuição Espacial</span>
+                </div>
+                <div class="gallery-overlay">
+                    <h4>Distribuição Espacial</h4>
+                    <p>Mapa de densidade de edifícios por região</p>
+                </div>
+            </div>
+            <div class="gallery-item fade-in">
+                <div class="image-placeholder">
+                    <div class="icon">🏙️</div>
+                    <span>Modelo 3D</span>
+                </div>
+                <div class="gallery-overlay">
+                    <h4>Visualização 3D</h4>
+                    <p>Extrusão dos edifícios baseada na altura</p>
+                </div>
+            </div>
+            <div class="gallery-item fade-in">
+                <div class="image-placeholder">
+                    <div class="icon">🛰️</div>
+                    <span>Imagem de Satélite</span>
+                </div>
+                <div class="gallery-overlay">
+                    <h4>Sentinel-2</h4>
+                    <p>Imagem de satélite da área de estudo</p>
+                </div>
+            </div>
+            <div class="gallery-item fade-in">
+                <div class="image-placeholder">
+                    <div class="icon">📈</div>
+                    <span>Gráficos Estatísticos</span>
+                </div>
+                <div class="gallery-overlay">
+                    <h4>Análises Estatísticas</h4>
+                    <p>Resumo visual dos principais indicadores</p>
+                </div>
+            </div>
+            <div class="gallery-item fade-in">
+                <div class="image-placeholder">
+                    <div class="icon">🎨</div>
+                    <span>Mapa Temático</span>
+                </div>
+                <div class="gallery-overlay">
+                    <h4>Classificação</h4>
+                    <p>Edifícios classificados por número de andares</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Downloads Section -->
+    <section id="downloads">
+        <div class="section-header">
+            <span class="section-tag">Downloads</span>
+            <h2 class="section-title">Baixe os Dados e Scripts</h2>
+            <p class="section-subtitle">
+                Todos os materiais disponíveis gratuitamente para uso e replicação
+            </p>
+        </div>
+        <div class="downloads-grid">
+            <div class="download-card fade-in">
+                <div class="download-icon">📊</div>
+                <h4>Dados Processados</h4>
+                <p>Arquivo GeoJSON com todos os edifícios e atributos calculados</p>
+                <div class="file-info">edificios_uberaba.geojson • ~15 MB</div>
+                <a href="#" class="btn btn-primary" onclick="alert('Link para o arquivo no GitHub')">
+                    <span>📥</span> Download
+                </a>
+            </div>
+            <div class="download-card fade-in">
+                <div class="download-icon">📋</div>
+                <h4>Planilha CSV</h4>
+                <p>Tabela com todos os atributos para análise em Excel</p>
+                <div class="file-info">edificios_uberaba.csv • ~5 MB</div>
+                <a href="#" class="btn btn-primary" onclick="alert('Link para o arquivo no GitHub')">
+                    <span>📥</span> Download
+                </a>
+            </div>
+            <div class="download-card fade-in">
+                <div class="download-icon">🗺️</div>
+                <h4>GeoPackage</h4>
+                <p>Formato compatível com QGIS e outros softwares GIS</p>
+                <div class="file-info">edificios_uberaba.gpkg • ~20 MB</div>
+                <a href="#" class="btn btn-primary" onclick="alert('Link para o arquivo no GitHub')">
+                    <span>📥</span> Download
+                </a>
+            </div>
+            <div class="download-card fade-in">
+                <div class="download-icon">💻</div>
+                <h4>Script Google Earth Engine</h4>
+                <p>Código JavaScript para extração de dados no GEE</p>
+                <div class="file-info">extract_building_heights.js • 12 KB</div>
+                <a href="#" class="btn btn-primary" onclick="alert('Link para o arquivo no GitHub')">
+                    <span>📥</span> Download
+                </a>
+            </div>
+            <div class="download-card fade-in">
+                <div class="download-icon">🐍</div>
+                <h4>Script QGIS/Python</h4>
+                <p>Código Python para processamento local no QGIS</p>
+                <div class="file-info">process_buildings.py • 8 KB</div>
+                <a href="#" class="btn btn-primary" onclick="alert('Link para o arquivo no GitHub')">
+                    <span>📥</span> Download
+                </a>
+            </div>
+            <div class="download-card fade-in">
+                <div class="download-icon">📦</div>
+                <h4>Projeto Completo</h4>
+                <p>Todos os arquivos, scripts e documentação em um ZIP</p>
+                <div class="file-info">projeto-uberaba-completo.zip • ~50 MB</div>
+                <a href="#" class="btn btn-primary" onclick="alert('Link para o arquivo no GitHub')">
+                    <span>📥</span> Download
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-brand">
+                <a href="#" class="logo">
+                    <div class="logo-icon">🏗️</div>
+                    <div class="logo-text">Urban<span>Map</span></div>
+                </a>
+                <p>Projeto de mapeamento e análise da verticalização urbana de Uberaba-MG utilizando técnicas de sensoriamento remoto e geoprocessamento.</p>
+                <div class="social-links">
+                    <a href="#" title="GitHub">📂</a>
+                    <a href="#" title="LinkedIn">💼</a>
+                    <a href="#" title="Email">📧</a>
+                </div>
+            </div>
+            <div class="footer-links">
+                <h4>Navegação</h4>
+                <ul>
+                    <li><a href="#inicio">Início</a></li>
+                    <li><a href="#sobre">Sobre</a></li>
+                    <li><a href="#metodologia">Metodologia</a></li>
+                    <li><a href="#dados">Dados</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Ferramentas</h4>
+                <ul>
+                    <li><a href="#calculadora">Calculadora</a></li>
+                    <li><a href="#galeria">Galeria</a></li>
+                    <li><a href="#downloads">Downloads</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Tecnologias</h4>
+                <ul>
+                    <li><a href="https://earthengine.google.com/" target="_blank">Google Earth Engine</a></li>
+                    <li><a href="https://qgis.org/" target="_blank">QGIS</a></li>
+                    <li><a href="https://sites.research.google/open-buildings/" target="_blank">Open Buildings</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2024 UrbanMap Uberaba. Projeto acadêmico de geoprocessamento.</p>
+            <p>Dados: Google Open Buildings | Copernicus DEM</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // ==================== NAVIGATION ====================
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+
+        // ==================== SCROLL ANIMATIONS ====================
+        const fadeElements = document.querySelectorAll('.fade-in');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        fadeElements.forEach(el => observer.observe(el));
+
+        // ==================== SAMPLE DATA ====================
+        const sampleData = [
+            { id: 1, lat: -19.7478, lng: -47.9319, altura: 12.5, andares: 4, cotaBase: 820, cotaTopo: 832.5, class: 'Médio (3-5 pav)' },
+            { id: 2, lat: -19.7452, lng: -47.9285, altura: 6.2, andares: 2, cotaBase: 815, cotaTopo: 821.2, class: 'Baixo (1-2 pav)' },
+            { id: 3, lat: -19.7501, lng: -47.9342, altura: 24.8, andares: 8, cotaBase: 825, cotaTopo: 849.8, class: 'Alto (6-10 pav)' },
+            { id: 4, lat: -19.7425, lng: -47.9298, altura: 36.5, andares: 12, cotaBase: 818, cotaTopo: 854.5, class: 'Muito Alto (>10 pav)' },
+            { id: 5, lat: -19.7489, lng: -47.9267, altura: 9.3, andares: 3, cotaBase: 822, cotaTopo: 831.3, class: 'Médio (3-5 pav)' },
+            { id: 6, lat: -19.7512, lng: -47.9331, altura: 15.6, andares: 5, cotaBase: 819, cotaTopo: 834.6, class: 'Médio (3-5 pav)' },
+            { id: 7, lat: -19.7438, lng: -47.9254, altura: 3.1, andares: 1, cotaBase: 823, cotaTopo: 826.1, class: 'Baixo (1-2 pav)' },
+            { id: 8, lat: -19.7467, lng: -47.9312, altura: 21.2, andares: 7, cotaBase: 817, cotaTopo: 838.2, class: 'Alto (6-10 pav)' },
+        ];
+
+        // Populate table
+        const tableBody = document.getElementById('tableBody');
+        sampleData.forEach(item => {
+            const classType = item.class.includes('Baixo') ? 'baixo' : 
+                             item.class.includes('Médio') ? 'medio' : 
+                             item.class.includes('Alto') && !item.class.includes('Muito') ? 'alto' : 'muito-alto';
+            tableBody.innerHTML += `
+                <tr>
+                    <td>${item.id}</td>
+                    <td>${item.lat.toFixed(4)}</td>
+                    <td>${item.lng.toFixed(4)}</td>
+                    <td>${item.altura.toFixed(1)}</td>
+                    <td>${item.andares}</td>
+                    <td>${item.cotaBase.toFixed(1)}</td>
+                    <td>${item.cotaTopo.toFixed(1)}</td>
+                    <td><span class="classification-badge ${classType}">${item.class}</span></td>
+                </tr>
+            `;
+        });
+
+        // ==================== CHARTS ====================
+        // Classification Chart
+        new Chart(document.getElementById('classificationChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Baixo (1-2 pav)', 'Médio (3-5 pav)', 'Alto (6-10 pav)', 'Muito Alto (>10 pav)'],
+                datasets: [{
+                    data: [8542, 4521, 1876, 295],
+                    backgroundColor: ['#00d4aa', '#ffc107', '#ff6b35', '#dc3545'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#8ba3b5', padding: 15 }
+                    }
+                }
+            }
+        });
+
+        // Height Distribution Chart
+        new Chart(document.getElementById('heightChart'), {
+            type: 'bar',
+            data: {
+                labels: ['0-5m', '5-10m', '10-15m', '15-20m', '20-30m', '>30m'],
+                datasets: [{
+                    label: 'Edifícios',
+                    data: [5234, 4521, 2876, 1543, 812, 248],
+                    backgroundColor: 'rgba(0, 212, 170, 0.7)',
+                    borderColor: '#00d4aa',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { ticks: { color: '#8ba3b5' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#8ba3b5' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                }
+            }
+        });
+
+        // Floors Chart
+        new Chart(document.getElementById('floorsChart'), {
+            type: 'bar',
+            data: {
+                labels: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10+'],
+                datasets: [{
+                    label: 'Edifícios',
+                    data: [4521, 4021, 2154, 1543, 824, 612, 421, 312, 231, 595],
+                    backgroundColor: 'rgba(255, 107, 53, 0.7)',
+                    borderColor: '#ff6b35',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { ticks: { color: '#8ba3b5' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#8ba3b5' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                }
+            }
+        });
+
+        // Elevation Chart
+        new Chart(document.getElementById('elevationChart'), {
+            type: 'line',
+            data: {
+                labels: ['Centro', 'Zona Norte', 'Zona Sul', 'Zona Leste', 'Zona Oeste'],
+                datasets: [{
+                    label: 'Elevação Média (m)',
+                    data: [820, 835, 810, 825, 815],
+                    borderColor: '#00d4aa',
+                    backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { ticks: { color: '#8ba3b5' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#8ba3b5' }, grid: { color: 'rgba(255,255,255,0.05)' }, min: 800, max: 850 }
+                }
+            }
+        });
+
+        // ==================== CALCULATOR ====================
+        let edificiosCadastrados = [];
+
+        function calcularEdificio() {
+            const lat = parseFloat(document.getElementById('latitude').value);
+            const lng = parseFloat(document.getElementById('longitude').value);
+            const andares = parseInt(document.getElementById('andares').value);
+            let elevacaoBase = parseFloat(document.getElementById('elevacaoBase').value);
+
+            // Validação
+            if (isNaN(lat) || isNaN(lng) || isNaN(andares)) {
+                alert('Por favor, preencha Latitude, Longitude e Quantidade de Andares.');
+                return;
+            }
+
+            if (andares < 1 || andares > 100) {
+                alert('Número de andares deve estar entre 1 e 100.');
+                return;
+            }
+
+            // Calcular altura (3m por andar)
+            const altura = andares * 3;
+
+            // Se não informou elevação base, usar valor estimado para Uberaba (800-850m)
+            if (isNaN(elevacaoBase)) {
+                elevacaoBase = 820 + (Math.random() * 20 - 10); // ~810-830m
+            }
+
+            // Calcular cota do topo
+            const cotaTopo = elevacaoBase + altura;
+
+            // Calcular azimute (simulado - em um caso real viria da geometria)
+            const azimute = Math.random() * 360;
+
+            // Classificação
+            let classificacao;
+            if (andares <= 2) {
+                classificacao = 'Baixo (1-2 pav)';
+            } else if (andares <= 5) {
+                classificacao = 'Médio (3-5 pav)';
+            } else if (andares <= 10) {
+                classificacao = 'Alto (6-10 pav)';
+            } else {
+                classificacao = 'Muito Alto (>10 pav)';
+            }
+
+            // Mostrar resultados
+            document.getElementById('resultsGrid').style.display = 'grid';
+            document.getElementById('classificationResult').style.display = 'block';
+
+            document.getElementById('resultAltura').textContent = altura.toFixed(1);
+            document.getElementById('resultAzimute').textContent = azimute.toFixed(1) + '°';
+            document.getElementById('resultCotaBase').textContent = elevacaoBase.toFixed(1);
+            document.getElementById('resultCotaTopo').textContent = cotaTopo.toFixed(1);
+            document.getElementById('resultClassificacao').textContent = classificacao;
+
+            // Adicionar à lista
+            const novoEdificio = {
+                id: edificiosCadastrados.length + 1,
+                latitude: lat,
+                longitude: lng,
+                andares: andares,
+                altura: altura,
+                azimute: azimute,
+                cotaBase: elevacaoBase,
+                cotaTopo: cotaTopo,
+                classificacao: classificacao
+            };
+
+            edificiosCadastrados.push(novoEdificio);
+            atualizarLista();
+        }
+
+        function atualizarLista() {
+            const lista = document.getElementById('dataList');
+            const total = document.getElementById('totalCadastrados');
+            
+            total.textContent = edificiosCadastrados.length;
+
+            if (edificiosCadastrados.length === 0) {
+                lista.innerHTML = `
+                    <p style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                        Nenhum edifício cadastrado ainda. Use o formulário acima para adicionar.
+                    </p>
+                `;
+                return;
+            }
+
+            lista.innerHTML = edificiosCadastrados.map((ed, index) => `
+                <div class="data-item">
+                    <div>
+                        <small style="color: var(--text-muted);">Lat/Lng</small><br>
+                        <span class="data-item-value">${ed.latitude.toFixed(4)}, ${ed.longitude.toFixed(4)}</span>
+                    </div>
+                    <div>
+                        <small style="color: var(--text-muted);">Andares/Altura</small><br>
+                        <span class="data-item-value">${ed.andares} pav / ${ed.altura}m</span>
+                    </div>
+                    <div>
+                        <small style="color: var(--text-muted);">Cotas</small><br>
+                        <span class="data-item-value">${ed.cotaBase.toFixed(1)} - ${ed.cotaTopo.toFixed(1)}m</span>
+                    </div>
+                    <div>
+                        <small style="color: var(--text-muted);">Classificação</small><br>
+                        <span class="data-item-value">${ed.classificacao}</span>
+                    </div>
+                    <button class="delete-btn" onclick="removerEdificio(${index})">🗑️</button>
+                </div>
+            `).join('');
+        }
+
+        function removerEdificio(index) {
+            edificiosCadastrados.splice(index, 1);
+            atualizarLista();
+        }
+
+        function limparFormulario() {
+            document.getElementById('latitude').value = '';
+            document.getElementById('longitude').value = '';
+            document.getElementById('andares').value = '';
+            document.getElementById('elevacaoBase').value = '';
+            document.getElementById('resultsGrid').style.display = 'none';
+            document.getElementById('classificationResult').style.display = 'none';
+        }
+
+        function limparTodos() {
+            if (confirm('Deseja realmente remover todos os edifícios cadastrados?')) {
+                edificiosCadastrados = [];
+                atualizarLista();
+            }
+        }
+
+        function exportarExcel() {
+            if (edificiosCadastrados.length === 0) {
+                alert('Nenhum edifício cadastrado para exportar.');
+                return;
+            }
+
+            // Preparar dados para Excel
+            const dados = edificiosCadastrados.map(ed => ({
+                'ID': ed.id,
+                'Latitude': ed.latitude,
+                'Longitude': ed.longitude,
+                'Quantidade de Andares': ed.andares,
+                'Altura Média (m)': ed.altura,
+                'Azimute (graus)': ed.azimute.toFixed(2),
+                'Cota da Base (m)': ed.cotaBase.toFixed(2),
+                'Cota do Topo (m)': ed.cotaTopo.toFixed(2),
+                'Classificação': ed.classificacao
+            }));
+
+            // Criar workbook
+            const ws = XLSX.utils.json_to_sheet(dados);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Edifícios');
+
+            // Ajustar largura das colunas
+            ws['!cols'] = [
+                { wch: 5 },  // ID
+                { wch: 12 }, // Latitude
+                { wch: 12 }, // Longitude
+                { wch: 20 }, // Andares
+                { wch: 15 }, // Altura
+                { wch: 15 }, // Azimute
+                { wch: 15 }, // Cota Base
+                { wch: 15 }, // Cota Topo
+                { wch: 20 }, // Classificação
+            ];
+
+            // Download
+            XLSX.writeFile(wb, 'edificios_uberaba.xlsx');
+        }
+
+        function downloadSampleCSV() {
+            const csvContent = "ID,Latitude,Longitude,Altura (m),Andares,Cota Base (m),Cota Topo (m),Classificação\n" +
+                sampleData.map(item => 
+                    `${item.id},${item.lat},${item.lng},${item.altura},${item.andares},${item.cotaBase},${item.cotaTopo},"${item.class}"`
+                ).join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'amostra_edificios_uberaba.csv';
+            link.click();
+        }
+
+        // Animate counter
+        function animateCounter(element, target) {
+            let current = 0;
+            const increment = target / 100;
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    element.textContent = target.toLocaleString();
+                    clearInterval(timer);
+                } else {
+                    element.textContent = Math.floor(current).toLocaleString();
+                }
+            }, 20);
+        }
+
+        // Start counter animation when hero is visible
+        const heroObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    animateCounter(document.getElementById('total-buildings'), 15234);
+                    heroObserver.disconnect();
+                }
+            });
+        });
+        heroObserver.observe(document.querySelector('.hero'));
+    </script>
+</body>
+</html>
